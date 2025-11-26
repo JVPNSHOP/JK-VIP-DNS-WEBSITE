@@ -384,8 +384,10 @@
     const API_URL  = API_BASE + "/dns";
     const CREDS = { user: "JueHtet", pass: "171991" };
 
-    // Worker verify endpoint (your worker)
-    const WORKER_VERIFY = "https://check-box.jvpnapp.workers.dev/__turnstile_verify";
+    // IMPORTANT: use same-origin worker route you added in Cloudflare:
+    // After you added route `jvpnapp.site/*` to the "check-box" worker,
+    // the verify endpoint will be available at /__turnstile_verify on this domain.
+    const WORKER_VERIFY = "/__turnstile_verify";
 
     const gate=document.getElementById("gate"),
           appWrap=document.getElementById("appWrap"),
@@ -424,13 +426,6 @@
     if (logoutFab) logoutFab.addEventListener("click", ()=> window.logout());
 
     // ----- LOGIN with Turnstile verify -----
-    // We require cf-turnstile-response token (widget injects this input after solve)
-    // On submit:
-    //  1) check credentials locally (keeps current behavior)
-    //  2) check that widget token exists
-    //  3) POST token to your Worker verify endpoint (redirect:'manual') and check for 302 status (success)
-    //  4) if success -> set localStorage auth and show app, else display error
-
     loginForm.addEventListener("submit", async (e)=>{
       e.preventDefault();
       loginMsg.textContent="";
@@ -444,7 +439,6 @@
       }
 
       // check for token produced by turnstile widget
-      // widget automatically injects an input[name="cf-turnstile-response"] into the form when solved
       const tokenInput = document.querySelector('input[name="cf-turnstile-response"]');
       const token = tokenInput ? tokenInput.value : null;
       if(!token){
@@ -456,24 +450,40 @@
       loginMsg.textContent = "Verifying…";
       try{
         const form = new FormData();
-        // Worker code checks 'cf-turnstile-response' or 'token'
         form.append("cf-turnstile-response", token);
-        // include redirect param (worker uses it for redirect, here we just use it to make worker return 302 on success)
+        // optional: include redirect or origin if your worker expects it
         form.append("redirect", "/");
 
+        // fetch same-origin verify endpoint (no CORS issue now because route bound)
         const resp = await fetch(WORKER_VERIFY, { method: "POST", body: form, redirect: "manual" });
-        // Worker (as provided earlier) returns 302 on success
+
+        // Case A: Worker performs a 302 redirect on success
         if(resp.status === 302){
-          // verified
           try{ localStorage.setItem("jvpn_auth","1"); }catch(e){}
           loginMsg.textContent = "Login success ✅";
           showApp();
           return;
-        }else{
-          // If worker returns 200/403 or other, consider verify failed.
-          loginMsg.textContent = "Verification failed (worker). Try again.";
-          return;
         }
+
+        // Case B: Worker returns JSON { success: true } on success
+        const ct = resp.headers.get("content-type") || "";
+        if(resp.ok && ct.includes("application/json")){
+          let json = {};
+          try{ json = await resp.json(); }catch(e){}
+          if(json.success === true){
+            try{ localStorage.setItem("jvpn_auth","1"); }catch(e){}
+            loginMsg.textContent = "Login success ✅";
+            showApp();
+            return;
+          }else{
+            loginMsg.textContent = "Verification failed (worker).";
+            return;
+          }
+        }
+
+        // fallback: any other status treat as failure
+        loginMsg.textContent = `Verification failed (status ${resp.status}).`;
+        return;
       }catch(err){
         loginMsg.textContent = "Network error: " + (err.message || err);
         return;
