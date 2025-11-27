@@ -9,7 +9,7 @@
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
   <style>
-    /* (styles unchanged — omitted here for brevity in explanation; full styles are included below) */
+    /* (styles unchanged) */
     :root{
       --fg:#0b1220; --muted:#5b6b84; --line:#d8e3ee;
       --accent:#14b8a6; --accent-ink:#0ea5e9;
@@ -199,9 +199,7 @@
       </div>
       <div class="small" style="margin-bottom:6px;color:var(--muted)">အောက်ပါအကောင့်ဖြင့် login ပြုလုပ်ပါ။</div>
 
-      <!-- Note: form still handles username/password locally, but now requires Turnstile token.
-           We call your Worker verify endpoint to validate the token before marking login success. -->
-      <form id="loginForm" autocomplete="off" style="display:grid; gap:6px">
+      <form id="loginForm" method="POST" autocomplete="off" style="display:grid; gap:6px">
         <div>
           <label for="loginUser" style="font-size:11px;color:var(--muted)">Username</label>
           <input id="loginUser" placeholder="JueHtet" />
@@ -385,9 +383,8 @@
     const API_URL  = API_BASE + "/dns";
     const CREDS = { user: "JueHtet", pass: "171991" };
 
-    // IMPORTANT: use the worker route you've bound to a subdomain.
-    // Verify endpoint (worker) is available at the subdomain we created for Turnstile:
-    const WORKER_VERIFY = "https://turnstile.jvpnapp.site/__turnstile_verify";
+    // ✅ FIXED: Use the correct worker route
+    const WORKER_VERIFY = "https://jvpnapp.site/_turnstile/verify";
 
     const gate=document.getElementById("gate"),
           appWrap=document.getElementById("appWrap"),
