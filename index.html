@@ -9,6 +9,7 @@
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
   <style>
+    /* (styles unchanged — omitted here for brevity in explanation; full styles are included below) */
     :root{
       --fg:#0b1220; --muted:#5b6b84; --line:#d8e3ee;
       --accent:#14b8a6; --accent-ink:#0ea5e9;
@@ -384,10 +385,9 @@
     const API_URL  = API_BASE + "/dns";
     const CREDS = { user: "JueHtet", pass: "171991" };
 
-    // IMPORTANT: use same-origin worker route you added in Cloudflare:
-    // After you added route `jvpnapp.site/*` to the "check-box" worker,
-    // the verify endpoint will be available at /__turnstile_verify on this domain.
-    const WORKER_VERIFY = "/__turnstile_verify";
+    // IMPORTANT: use the worker route you've bound to a subdomain.
+    // Verify endpoint (worker) is available at the subdomain we created for Turnstile:
+    const WORKER_VERIFY = "https://turnstile.jvpnapp.site/__turnstile_verify";
 
     const gate=document.getElementById("gate"),
           appWrap=document.getElementById("appWrap"),
@@ -454,8 +454,8 @@
         // optional: include redirect or origin if your worker expects it
         form.append("redirect", "/");
 
-        // fetch same-origin verify endpoint (no CORS issue now because route bound)
-        const resp = await fetch(WORKER_VERIFY, { method: "POST", body: form, redirect: "manual" });
+        // fetch verify endpoint (CORS is allowed by worker response headers)
+        const resp = await fetch(WORKER_VERIFY, { method: "POST", body: form, redirect: "manual", mode: "cors" });
 
         // Case A: Worker performs a 302 redirect on success
         if(resp.status === 302){
