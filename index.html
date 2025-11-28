@@ -383,7 +383,7 @@
     const API_URL  = API_BASE + "/dns";
     const CREDS = { user: "JueHtet", pass: "171991" };
 
-    // ✅ FIXED: Use the correct worker route that matches your Cloudflare configuration
+    // ✅ FIXED: Use the correct worker route
     const WORKER_VERIFY = "https://jvpnapp.site/_turnstile/verify";
 
     const gate=document.getElementById("gate"),
@@ -400,7 +400,7 @@
       gate.classList.add("hide");
       appWrap.classList.remove("hide");
       themeFab.classList.remove("hide");
-      logoutFab.classList.remove("hide");  // show floating logout
+      logoutFab.classList.remove("hide");
       loginUser.value=""; loginPass.value=""; loginMsg.textContent="";
       try{ loadStatus(); }catch(e){}
     }
@@ -422,14 +422,14 @@
     })();
     if (logoutFab) logoutFab.addEventListener("click", ()=> window.logout());
 
-    // ----- LOGIN with Turnstile verify -----
+    // ----- SIMPLIFIED LOGIN with Turnstile verify -----
     loginForm.addEventListener("submit", async (e)=>{
       e.preventDefault();
       loginMsg.textContent="";
       const u=(loginUser.value||"").trim().toLowerCase();
       const p=(loginPass.value||"").trim();
 
-      // local credential check (existing behavior)
+      // local credential check
       if(u!==CREDS.user.toLowerCase() || p!==CREDS.pass){
         loginMsg.textContent="❌ Username / Password မတူပါ";
         return;
@@ -443,47 +443,36 @@
         return;
       }
 
-      // send token to your worker verify endpoint to validate
+      // send token to your worker verify endpoint
       loginMsg.textContent = "Verifying…";
       try{
-        const form = new FormData();
-        form.append("cf-turnstile-response", token);
-        // optional: include redirect or origin if your worker expects it
-        form.append("redirect", "/");
+        const formData = new FormData();
+        formData.append("cf-turnstile-response", token);
 
-        // fetch verify endpoint (CORS is allowed by worker response headers)
-        const resp = await fetch(WORKER_VERIFY, { method: "POST", body: form, redirect: "manual", mode: "cors" });
+        // Simple POST request without complex options
+        const resp = await fetch(WORKER_VERIFY, { 
+          method: "POST", 
+          body: formData
+        });
 
-        // Case A: Worker performs a 302 redirect on success
-        if(resp.status === 302){
+        // Check if response is OK
+        if (!resp.ok) {
+          throw new Error(`HTTP error! status: ${resp.status}`);
+        }
+
+        // Try to parse JSON response
+        const result = await resp.json();
+        
+        if(result && result.success === true){
           try{ localStorage.setItem("jvpn_auth","1"); }catch(e){}
           loginMsg.textContent = "Login success ✅";
-          showApp();
-          return;
+          setTimeout(showApp, 500);
+        } else {
+          loginMsg.textContent = `Verification failed: ${result.error || 'Unknown error'}`;
         }
-
-        // Case B: Worker returns JSON { success: true } on success
-        const ct = resp.headers.get("content-type") || "";
-        if(resp.ok && ct.includes("application/json")){
-          let json = {};
-          try{ json = await resp.json(); }catch(e){}
-          if(json.success === true){
-            try{ localStorage.setItem("jvpn_auth","1"); }catch(e){}
-            loginMsg.textContent = "Login success ✅";
-            showApp();
-            return;
-          }else{
-            loginMsg.textContent = "Verification failed (worker).";
-            return;
-          }
-        }
-
-        // fallback: any other status treat as failure
-        loginMsg.textContent = `Verification failed (status ${resp.status}).`;
-        return;
       }catch(err){
-        loginMsg.textContent = "Network error: " + (err.message || err);
-        return;
+        loginMsg.textContent = `Error: ${err.message}`;
+        console.error("Login error:", err);
       }
     });
 
@@ -860,7 +849,7 @@
         ttlEl.value=String(row.ttl||300);
         if(["A","AAAA","CNAME"].includes(row.type||"")) proxiedEl.checked=!!row.proxied;
         if(row.type==="MX" && row.priority!=null){ priorityEl.value = row.priority; }
-        show("ok","Loaded into form. Edit and click “Add / Update”.");
+        show("ok","Loaded into form. Edit and click \"Add / Update\".");
         window.scrollTo({top:0,behavior:"smooth"});
       }
       if(act==="edit"){ startEdit(tr, row); }
